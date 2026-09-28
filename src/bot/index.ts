@@ -41,12 +41,14 @@ export function createBot(config: Config): Bot {
 
   bot.on('message:text', async (ctx) => {
     const chatId = ctx.chat.id;
-    const prompt = buildPromptForMessage(chatId, ctx.message.text, pending);
+    const { prompt, effectiveOriginalMessage } = buildPromptForMessage(chatId, ctx.message.text, pending);
     try {
       const result = await runHeadless(prompt, { agyBin: config.agyBin, timeout: config.agyTimeout });
       const action = interpretAgyResponse(result.response);
       if (action.kind === 'clarify') {
-        pending.set({ chatId, originalMessage: ctx.message.text, question: action.text });
+        // Not ctx.message.text: on a 2nd+ clarification round that is only the
+        // user's answer to the previous question, not the original message.
+        pending.set({ chatId, originalMessage: effectiveOriginalMessage, question: action.text });
       }
       await ctx.reply(action.text);
     } catch (err) {

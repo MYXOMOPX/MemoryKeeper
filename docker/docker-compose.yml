@@ -1,0 +1,18 @@
+services:
+  bot:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile
+    restart: unless-stopped
+    environment:
+      TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN}
+      ALLOWED_TELEGRAM_ID: ${ALLOWED_TELEGRAM_ID}
+      VAULT_PATH: /vault
+      AGY_BIN: agy
+      AGY_TIMEOUT: 2m
+    volumes:
+      - /mnt/memory-vault:/vault
+      - agy-auth:/root/.gemini/antigravity-cli
+
+volumes:
+  agy-auth:

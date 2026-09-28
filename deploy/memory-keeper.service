@@ -1,0 +1,15 @@
+[Unit]
+Description=MemoryKeeper Telegram bot (docker compose)
+Requires=memory-vault-mount.service
+After=memory-vault-mount.service docker.service
+BindsTo=memory-vault-mount.service
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+WorkingDirectory=/opt/memory-keeper
+ExecStart=/usr/bin/docker compose -f docker/docker-compose.yml up -d
+ExecStop=/usr/bin/docker compose -f docker/docker-compose.yml down
+
+[Install]
+WantedBy=multi-user.target

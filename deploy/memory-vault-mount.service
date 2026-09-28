@@ -1,0 +1,16 @@
+[Unit]
+Description=Mount MemoryKeeper Google Drive vault via rclone
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+ExecStartPre=/bin/mkdir -p /mnt/memory-vault
+ExecStart=/usr/bin/rclone mount gdrive:MemoryVault /mnt/memory-vault --vfs-cache-mode writes --allow-other
+ExecStop=/bin/fusermount -u /mnt/memory-vault
+Restart=always
+RestartSec=5
+User=root
+
+[Install]
+WantedBy=multi-user.target

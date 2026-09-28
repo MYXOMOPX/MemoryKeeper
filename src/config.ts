@@ -1,3 +1,5 @@
+import { parseTimeoutToMs } from './agy/runHeadless.js';
+
 export interface Config {
   telegramBotToken: string;
   allowedTelegramId: number;
@@ -20,11 +22,16 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
     throw new Error(`ALLOWED_TELEGRAM_ID must be an integer, got "${allowedTelegramIdRaw}"`);
   }
 
+  const agyTimeout = env.AGY_TIMEOUT ?? '2m';
+  // Fail fast at startup rather than on every message: runHeadless needs to
+  // parse this for its Node-side kill timer.
+  parseTimeoutToMs(agyTimeout);
+
   return {
     telegramBotToken,
     allowedTelegramId,
     vaultPath,
     agyBin: env.AGY_BIN ?? 'agy',
-    agyTimeout: env.AGY_TIMEOUT ?? '2m',
+    agyTimeout,
   };
 }

@@ -25,6 +25,10 @@ describe('loadConfig', () => {
     expect(config.agyTimeout).toBe('5m');
   });
 
+  it('throws at startup when AGY_TIMEOUT is not a parseable duration', () => {
+    expect(() => loadConfig({ ...validEnv, AGY_TIMEOUT: 'two minutes' })).toThrow('Invalid timeout');
+  });
+
   it('throws when TELEGRAM_BOT_TOKEN is missing', () => {
     const { TELEGRAM_BOT_TOKEN, ...rest } = validEnv;
     expect(() => loadConfig(rest)).toThrow('TELEGRAM_BOT_TOKEN is required');

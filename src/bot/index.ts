@@ -12,6 +12,10 @@ export function createBot(config: Config): Bot {
   const bot = new Bot(config.telegramBotToken);
   const pending = new PendingContextStore();
 
+  bot.catch((err) => {
+    console.error(`Unhandled bot error for update ${err.ctx.update.update_id}:`, err.error);
+  });
+
   bot.use(async (ctx, next) => {
     if (!isAuthorized(ctx.from?.id, config.allowedTelegramId)) return;
     await next();

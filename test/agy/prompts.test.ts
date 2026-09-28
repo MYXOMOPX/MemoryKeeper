@@ -14,6 +14,13 @@ describe('buildMessagePrompt', () => {
     expect(prompt.toLowerCase()).toContain('не читай весь vault');
   });
 
+  it('offers add_alias and never offers a tool that applies schema changes', () => {
+    const prompt = buildMessagePrompt('Петю ещё зовут Петруха');
+    expect(prompt).toContain('add_alias');
+    expect(prompt).toContain('propose_schema_change');
+    expect(prompt).not.toContain('apply_schema_change');
+  });
+
   it('references the CLARIFY convention', () => {
     const prompt = buildMessagePrompt('кто он?');
     expect(prompt).toContain(CLARIFY_PREFIX);

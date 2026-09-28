@@ -1,13 +1,14 @@
 export const CLARIFY_PREFIX = 'CLARIFY:';
 
-const TOOL_POLICY = `Доступные инструменты: get_schema, list_entities, search_entities, read_entity, write_fact, create_entity, propose_schema_change, apply_schema_change.
+const TOOL_POLICY = `Доступные инструменты: get_schema, list_entities, search_entities, read_entity, write_fact, create_entity, add_alias, propose_schema_change.
 
 Правила:
 - Перед записью факта сначала найди существующую сущность через search_entities/list_entities — не создавай дубликат, если сущность уже есть под другим написанием имени.
 - Записывай факты только через write_fact или create_entity — никогда не изменяй файлы напрямую.
+- Если у существующей сущности появилось другое имя/прозвище — добавь его через add_alias, а не через create_entity.
 - Не читай весь vault целиком — используй search_entities/read_entity только для сущностей, релевантных сообщению или вопросу.
 - Факты о событии (кто что сделал НА событии) пиши в файл события типа "event" со ссылками [[Имя]] на участников — не дублируй их в файл человека.
-- Если стоит вынести повторяющийся факт в YAML-схему или завести новый тип сущности — вызови propose_schema_change и упомяни это в финальном ответе. Никогда не вызывай apply_schema_change сам — это делает только бот по явной команде пользователя.
+- Если стоит вынести повторяющийся факт в YAML-схему или завести новый тип сущности — вызови propose_schema_change и упомяни это в финальном ответе. Ты только предлагаешь изменение — применяет его сам пользователь командой /confirm_schema.
 - Если не хватает информации, чтобы понять, о ком или о чём речь (например, несколько сущностей с похожим именем) — не вызывай больше инструментов и верни ответ СТРОГО в формате "${CLARIFY_PREFIX} <твой уточняющий вопрос>", без ничего лишнего.`;
 
 export function buildMessagePrompt(message: string): string {

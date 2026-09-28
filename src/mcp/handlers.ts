@@ -2,8 +2,7 @@ import { readSchema } from '../vault/schema.js';
 import { listAllEntities, readEntity, writeEntity } from '../vault/entity.js';
 import { searchEntities } from '../vault/search.js';
 import { upsertFact, type RelatedEntity } from '../vault/facts.js';
-import { saveProposal, getProposal, deleteProposal, type SchemaChange } from '../vault/schemaProposals.js';
-import { applySchemaChange } from '../vault/applySchemaChange.js';
+import { saveProposal, type SchemaChange } from '../vault/schemaProposals.js';
 import type { EntityFile, VaultSchema } from '../vault/types.js';
 
 function emptyEntity(type: string, name: string): EntityFile {
@@ -50,6 +49,18 @@ export async function writeFact(
   return { message: `Записано: ${type}/${name} — ${key}: ${value}` };
 }
 
+function withAlias(aliases: string[], alias: string): string[] {
+  const trimmed = alias.trim();
+  if (!trimmed || aliases.includes(trimmed)) return aliases;
+  return [...aliases, trimmed];
+}
+
+/**
+ * Creates the entity, or — if it already exists — merges `fields` into its
+ * existing frontmatter (incoming values win on conflict) without touching its
+ * facts, notes or any other hand-written content. `type` cannot be overridden,
+ * and an `aliases` field is appended as one alias instead of replacing the array.
+ */
 export async function createEntity(
   vaultPath: string,
   type: string,
@@ -57,10 +68,34 @@ export async function createEntity(
   fields: Record<string, string> = {},
 ): Promise<{ message: string }> {
   const schema = await readSchema(vaultPath);
-  const entity = emptyEntity(type, name);
-  entity.frontmatter = { ...entity.frontmatter, ...fields };
+  const existing = await readEntity(vaultPath, schema, type, name);
+  const entity = existing ?? emptyEntity(type, name);
+  const otherFields = Object.fromEntries(
+    Object.entries(fields).filter(([key]) => key !== 'type' && key !== 'aliases'),
+  );
+  const aliases =
+    fields.aliases === undefined ? entity.frontmatter.aliases : withAlias(entity.frontmatter.aliases, fields.aliases);
+  entity.frontmatter = { ...entity.frontmatter, ...otherFields, type, aliases };
   await writeEntity(vaultPath, schema, entity);
-  return { message: `Создано: ${type}/${name}` };
+  return { message: existing ? `Обновлено (уже существовало): ${type}/${name}` : `Создано: ${type}/${name}` };
+}
+
+export async function addAlias(
+  vaultPath: string,
+  type: string,
+  name: string,
+  alias: string,
+): Promise<{ message: string }> {
+  const trimmed = alias.trim();
+  if (!trimmed) return { message: 'Пустой алиас — ничего не добавлено' };
+  const schema = await readSchema(vaultPath);
+  const entity = (await readEntity(vaultPath, schema, type, name)) ?? emptyEntity(type, name);
+  if (entity.frontmatter.aliases.includes(trimmed)) {
+    return { message: `Алиас «${trimmed}» уже есть у ${type}/${name}` };
+  }
+  const aliases = withAlias(entity.frontmatter.aliases, trimmed);
+  await writeEntity(vaultPath, schema, { ...entity, frontmatter: { ...entity.frontmatter, aliases } });
+  return { message: `Добавлен алиас «${trimmed}» для ${type}/${name}` };
 }
 
 export async function proposeSchemaChange(
@@ -75,10 +110,6 @@ export async function proposeSchemaChange(
   };
 }
 
-export async function applySchemaChangeHandler(vaultPath: string, id: string): Promise<{ message: string }> {
-  const proposal = await getProposal(vaultPath, id);
-  if (!proposal) return { message: `Предложение ${id} не найдено` };
-  const result = await applySchemaChange(vaultPath, proposal);
-  await deleteProposal(vaultPath, id);
-  return { message: `Применено. Обновлённые файлы: ${result.updatedFiles.join(', ') || '—'}` };
-}
+// NOTE: there is deliberately no apply-schema-change handler here. Applying a
+// proposal is NOT exposed to agy over MCP — it happens only in the bot's
+// /confirm_schema command (src/bot/index.ts), after explicit user confirmation.

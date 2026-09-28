@@ -42,9 +42,16 @@ server.tool(
 
 server.tool(
   'create_entity',
-  'Explicitly create a new entity of a known type',
+  'Explicitly create a new entity of a known type; if it already exists, merges fields into it without losing its facts',
   { type: z.string(), name: z.string(), fields: z.record(z.string()).optional() },
   async ({ type, name, fields }) => textResult(await handlers.createEntity(VAULT_PATH, type, name, fields)),
+);
+
+server.tool(
+  'add_alias',
+  'Add an alternative name (alias) to an entity, keeping all its existing facts; creates the entity if it does not exist',
+  { type: z.string(), name: z.string(), alias: z.string() },
+  async ({ type, name, alias }) => textResult(await handlers.addAlias(VAULT_PATH, type, name, alias)),
 );
 
 server.tool(
@@ -65,9 +72,8 @@ server.tool(
   async ({ description, change }) => textResult(await handlers.proposeSchemaChange(VAULT_PATH, description, change)),
 );
 
-server.tool('apply_schema_change', 'Apply a previously confirmed schema-change proposal by id', { id: z.string() }, async ({ id }) =>
-  textResult(await handlers.applySchemaChangeHandler(VAULT_PATH, id)),
-);
+// Intentionally NO apply_schema_change tool: schema changes are applied only by
+// the bot's /confirm_schema command after explicit user confirmation, never by agy.
 
 const transport = new StdioServerTransport();
 await server.connect(transport);

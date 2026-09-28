@@ -8,8 +8,15 @@ BindsTo=memory-vault-mount.service
 Type=oneshot
 RemainAfterExit=yes
 WorkingDirectory=/opt/memory-keeper
-ExecStart=/usr/bin/docker compose -f docker/docker-compose.yml up -d
-ExecStop=/usr/bin/docker compose -f docker/docker-compose.yml down
+# Primary vault-readiness guard. memory-vault-mount.service being "started"
+# only means rclone was forked, not that the FUSE mount completed; and the
+# container cannot detect this itself (a bind mount of an empty host dir looks
+# mounted from inside). Refuse to start unless the host path is a real mount.
+ExecStartPre=/usr/bin/mountpoint -q /mnt/memory-vault
+# --env-file .env: Compose v2 otherwise looks for .env next to the compose file
+# (docker/), not in WorkingDirectory. This resolves to /opt/memory-keeper/.env.
+ExecStart=/usr/bin/docker compose -f docker/docker-compose.yml --env-file .env up -d
+ExecStop=/usr/bin/docker compose -f docker/docker-compose.yml --env-file .env down
 
 [Install]
 WantedBy=multi-user.target

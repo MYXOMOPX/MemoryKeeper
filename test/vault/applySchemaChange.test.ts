@@ -65,4 +65,47 @@ describe('applySchemaChange', () => {
     const reloadedSchema = await readSchema(vaultPath);
     expect(reloadedSchema.types.person.structuredFields).toContain('Любимый чай');
   });
+
+  it('strips wikilinks when promoting a fact key with linked entities to frontmatter', async () => {
+    const schema = await readSchema(vaultPath);
+    await writeEntity(vaultPath, schema, {
+      type: 'person',
+      name: 'Максим',
+      frontmatter: { type: 'person', aliases: [] },
+      factLines: ['- Первая девушка: Яна [[Яна Сергеева]] _(добавлено 2026-09-19)_'],
+      notes: '',
+    });
+
+    const proposal: SchemaProposal = {
+      id: '3',
+      createdAt: new Date().toISOString(),
+      description: 'Promote first girlfriend',
+      change: { kind: 'promote_field', entityType: 'person', factKey: 'Первая девушка' },
+    };
+    const result = await applySchemaChange(vaultPath, proposal);
+    expect(result.updatedFiles).toEqual(['Максим']);
+
+    const maxim = await readEntity(vaultPath, await readSchema(vaultPath), 'person', 'Максим');
+    expect(maxim?.frontmatter['Первая девушка']).toBe('Яна');
+    expect(maxim?.factLines).toEqual([]);
+  });
+
+  it('throws on new_type when the type name already exists, without modifying the schema', async () => {
+    const before = await readSchema(vaultPath);
+    const existingPersonFolder = before.types.person.folder;
+
+    const proposal: SchemaProposal = {
+      id: '4',
+      createdAt: new Date().toISOString(),
+      description: 'Collide with person',
+      change: { kind: 'new_type', typeName: 'person', folder: 'ClobberedFolder', structuredFields: [] },
+    };
+
+    await expect(applySchemaChange(vaultPath, proposal)).rejects.toThrow(
+      'Entity type "person" already exists',
+    );
+
+    const after = await readSchema(vaultPath);
+    expect(after.types.person.folder).toBe(existingPersonFolder);
+  });
 });

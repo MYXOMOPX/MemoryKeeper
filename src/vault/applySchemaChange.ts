@@ -24,6 +24,9 @@ export async function applySchemaChange(
 
   if (proposal.change.kind === 'new_type') {
     const { typeName, folder, structuredFields } = proposal.change;
+    if (schema.types[typeName]) {
+      throw new Error(`Entity type "${typeName}" already exists`);
+    }
     schema.types[typeName] = { folder, structuredFields };
     await writeSchema(vaultPath, schema);
     return { updatedFiles: [] };

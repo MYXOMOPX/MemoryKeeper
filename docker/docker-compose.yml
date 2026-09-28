@@ -12,7 +12,14 @@ services:
       AGY_TIMEOUT: 2m
     volumes:
       - /mnt/memory-vault:/vault
-      - agy-auth:/root/.gemini/antigravity-cli
+      # Mount the WHOLE ~/.gemini directory (not just antigravity-cli/): where
+      # `agy auth login` persists its OAuth token is not verified — its
+      # predecessor gemini-cli wrote ~/.gemini/oauth_creds.json directly under
+      # ~/.gemini. Mounting the parent guarantees the token survives container
+      # recreation wherever it lands. On first attach, Docker seeds this empty
+      # named volume from the image's /root/.gemini (which contains the baked-in
+      # antigravity-cli/mcp_config.json).
+      - agy-auth:/root/.gemini
 
 volumes:
   agy-auth:

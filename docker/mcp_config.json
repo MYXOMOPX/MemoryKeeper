@@ -3,7 +3,8 @@
     "memory-keeper-vault": {
       "command": "node",
       "args": ["/app/dist/mcp/server.js"],
-      "env": { "VAULT_PATH": "/vault" }
+      "env": { "VAULT_PATH": "/vault" },
+      "trust": true
     }
   }
 }

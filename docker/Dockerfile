@@ -33,6 +33,13 @@ RUN curl -fsSL -o /tmp/agy.tar.gz \
 COPY --from=build /app/dist ./dist
 COPY package.json package-lock.json* ./
 RUN npm install --omit=dev
+# The whole /root/.gemini directory is a named volume at runtime (see
+# docker-compose.yml). Docker seeds an empty named volume from the image's
+# content at the mount target on first attach, so mcp_config.json must be baked
+# in under /root/.gemini before that happens. Note: once the volume exists,
+# rebuilding the image does NOT refresh mcp_config.json inside it — remove the
+# volume (or copy the file in) if mcp_config.json changes.
+RUN mkdir -p /root/.gemini/antigravity-cli
 COPY docker/mcp_config.json /root/.gemini/antigravity-cli/mcp_config.json
 COPY docker/entrypoint.sh /entrypoint.sh
 RUN chmod +x /entrypoint.sh

@@ -12,10 +12,16 @@ export function entityFilePath(vaultPath: string, schema: VaultSchema, type: str
   return path.join(vaultPath, typeSchema.folder, `${name}.md`);
 }
 
+const NO_FACTS_PLACEHOLDER = '(пока нет фактов)';
+// A level-1 or level-2 markdown heading ends the `## Факты` block.
+const SECTION_HEADING = /^#{1,2}\s/;
+
 export function serializeEntity(entity: EntityFile): string {
+  const extra = entity.extraContent.trim() ? [entity.extraContent, ''] : [];
   const body = [
+    ...extra,
     FACTS_HEADING,
-    ...(entity.factLines.length > 0 ? entity.factLines : ['(пока нет фактов)']),
+    ...(entity.factLines.length > 0 ? entity.factLines : [NO_FACTS_PLACEHOLDER]),
     '',
     NOTES_HEADING,
     entity.notes,
@@ -23,27 +29,77 @@ export function serializeEntity(entity: EntityFile): string {
   return matter.stringify(body, entity.frontmatter);
 }
 
+function formatYamlDate(date: Date): string {
+  const iso = date.toISOString();
+  // YAML `2026-09-20` parses to midnight UTC: write it back as the plain date it was.
+  return iso.endsWith('T00:00:00.000Z') ? iso.slice(0, 10) : iso;
+}
+
+/**
+ * gray-matter's YAML engine turns unquoted date-like values (`date: 2026-09-20`)
+ * into JS Date objects, which would be re-serialized as `2026-09-20T00:00:00.000Z`.
+ * Convert them back to strings so frontmatter round-trips unchanged.
+ */
+function normalizeYamlValue(value: unknown): unknown {
+  if (value instanceof Date) return formatYamlDate(value);
+  if (Array.isArray(value)) return value.map(normalizeYamlValue);
+  return value;
+}
+
+function normalizeAliases(value: unknown): string[] {
+  if (Array.isArray(value)) return value.filter((a): a is string => typeof a === 'string');
+  if (typeof value === 'string' && value.trim()) return [value];
+  return [];
+}
+
+/** Drops leading blank lines and trailing whitespace, keeping everything else verbatim. */
+function trimBlankEdges(text: string): string {
+  return text.replace(/^\s*\n/, '').trimEnd();
+}
+
 export function parseEntity(raw: string, type: string, name: string): EntityFile {
   const parsed = matter(raw);
   const lines = parsed.content.split('\n');
-  const factsStart = lines.findIndex((l) => l.trim() === FACTS_HEADING);
-  const notesStart = lines.findIndex((l) => l.trim() === NOTES_HEADING);
 
-  const factLines =
-    factsStart === -1
-      ? []
-      : lines
-          .slice(factsStart + 1, notesStart === -1 ? undefined : notesStart)
-          .filter((l) => l.trim().startsWith('-'));
+  // Single pass: text before `## Факты`, and any other `#`/`##` section outside
+  // the two managed blocks, goes to extraContent. Everything after `## Заметки`
+  // (to EOF) is notes, as before.
+  const extra: string[] = [];
+  const facts: string[] = [];
+  const notes: string[] = [];
+  let section: 'extra' | 'facts' | 'notes' = 'extra';
+  for (const line of lines) {
+    const trimmed = line.trim();
+    if (section !== 'notes') {
+      if (trimmed === FACTS_HEADING) {
+        section = 'facts';
+        continue;
+      }
+      if (trimmed === NOTES_HEADING) {
+        section = 'notes';
+        continue;
+      }
+      if (section === 'facts' && SECTION_HEADING.test(trimmed)) section = 'extra';
+    }
+    if (section === 'extra') extra.push(line);
+    else if (section === 'facts') facts.push(line);
+    else notes.push(line);
+  }
 
-  const notes = notesStart === -1 ? '' : lines.slice(notesStart + 1).join('\n').trim();
+  // Keep every non-blank line of the facts block (bullets, but also any
+  // hand-written prose or continuation lines) except our own placeholder.
+  const factLines = facts.filter((l) => l.trim() !== '' && l.trim() !== NO_FACTS_PLACEHOLDER);
+
+  const data: Record<string, unknown> = {};
+  for (const [key, value] of Object.entries(parsed.data)) data[key] = normalizeYamlValue(value);
 
   return {
     type,
     name,
-    frontmatter: { type, aliases: [], ...parsed.data } as EntityFile['frontmatter'],
+    frontmatter: { type, ...data, aliases: normalizeAliases(data.aliases) } as EntityFile['frontmatter'],
     factLines,
-    notes,
+    notes: notes.join('\n').trim(),
+    extraContent: trimBlankEdges(extra.join('\n')),
   };
 }
 

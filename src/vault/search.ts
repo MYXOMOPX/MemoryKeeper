@@ -1,7 +1,10 @@
 import type { EntityFile } from './types.js';
 
 function aliasesOf(entity: EntityFile): string[] {
-  return [entity.name, ...(entity.frontmatter.aliases ?? [])];
+  const aliases: unknown = entity.frontmatter.aliases;
+  // Defensive: a hand-edited `aliases: Петя` is a string; never spread it into characters.
+  if (typeof aliases === 'string') return [entity.name, aliases];
+  return [entity.name, ...(Array.isArray(aliases) ? aliases.filter((a): a is string => typeof a === 'string') : [])];
 }
 
 export function findByNameOrAlias(entities: EntityFile[], query: string): EntityFile[] {

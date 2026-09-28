@@ -37,6 +37,7 @@ describe('applySchemaChange', () => {
       frontmatter: { type: 'person', aliases: [] },
       factLines: ['- Любимый чай: зелёный _(добавлено 2026-09-19)_'],
       notes: '',
+      extraContent: '',
     });
     await writeEntity(vaultPath, schema, {
       type: 'person',
@@ -44,6 +45,7 @@ describe('applySchemaChange', () => {
       frontmatter: { type: 'person', aliases: [] },
       factLines: ['- Рост: 165 _(добавлено 2026-09-19)_'],
       notes: '',
+      extraContent: '',
     });
 
     const proposal: SchemaProposal = {
@@ -74,6 +76,7 @@ describe('applySchemaChange', () => {
       frontmatter: { type: 'person', aliases: [] },
       factLines: ['- Первая девушка: Яна [[Яна Сергеева]] _(добавлено 2026-09-19)_'],
       notes: '',
+      extraContent: '',
     });
 
     const proposal: SchemaProposal = {

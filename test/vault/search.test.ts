@@ -8,6 +8,7 @@ const petya: EntityFile = {
   frontmatter: { type: 'person', aliases: ['Петя'], tea_preference: 'зелёный, без сахара' },
   factLines: ['- Первая девушка: [[Яна Сергеева]] _(добавлено 2026-09-19)_'],
   notes: '',
+  extraContent: '',
 };
 const yana: EntityFile = {
   type: 'person',
@@ -15,6 +16,7 @@ const yana: EntityFile = {
   frontmatter: { type: 'person', aliases: ['Яна'] },
   factLines: [],
   notes: '',
+  extraContent: '',
 };
 const entities = [petya, yana];
 

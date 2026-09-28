@@ -4,7 +4,7 @@ import { defaultSchema } from '../../src/vault/schema.js';
 import type { EntityFile, VaultSchema } from '../../src/vault/types.js';
 
 function person(): EntityFile {
-  return { type: 'person', name: 'Петя', frontmatter: { type: 'person', aliases: [] }, factLines: [], notes: '' };
+  return { type: 'person', name: 'Петя', frontmatter: { type: 'person', aliases: [] }, factLines: [], notes: '', extraContent: '' };
 }
 
 describe('upsertFact', () => {

@@ -7,7 +7,7 @@ import { applySchemaChange } from '../vault/applySchemaChange.js';
 import type { EntityFile, VaultSchema } from '../vault/types.js';
 
 function emptyEntity(type: string, name: string): EntityFile {
-  return { type, name, frontmatter: { type, aliases: [] }, factLines: [], notes: '' };
+  return { type, name, frontmatter: { type, aliases: [] }, factLines: [], notes: '', extraContent: '' };
 }
 
 export async function getSchema(vaultPath: string): Promise<VaultSchema> {

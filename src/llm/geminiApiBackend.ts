@@ -17,8 +17,15 @@ import {
 } from '../mcp/toolSchemas.js';
 import type { LlmBackend } from './types.js';
 
-/** Internal safety valve against a runaway tool-calling loop — not configurable. */
-const MAX_TURNS = 8;
+/**
+ * Internal safety valve against a runaway tool-calling loop — not
+ * configurable. 8 turned out too low in practice: a weaker/cheaper model
+ * (e.g. gemini-3.5-flash-lite) can burn several turns re-searching the same
+ * entity by different attributes before it starts writing, especially for a
+ * message packing many facts at once. Raised to give real messages enough
+ * headroom while still bounding a genuinely runaway loop.
+ */
+const MAX_TURNS = 16;
 
 type ToolHandler = (vaultPath: string, args: Record<string, unknown>) => Promise<unknown>;
 

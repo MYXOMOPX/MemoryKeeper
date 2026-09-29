@@ -80,6 +80,7 @@ export function createGeminiApiBackend(config: Config): LlmBackend {
       const contents: Content[] = [{ role: 'user', parts: [{ text: prompt }] }];
 
       for (let turn = 0; turn < MAX_TURNS; turn++) {
+        console.log(`[gemini-api] turn ${turn + 1}/${MAX_TURNS}: calling generateContent...`);
         const result = await ai.models.generateContent({
           model: config.geminiApiModel,
           contents,
@@ -91,8 +92,10 @@ export function createGeminiApiBackend(config: Config): LlmBackend {
 
         const functionCalls: FunctionCall[] = result.functionCalls ?? [];
         if (functionCalls.length === 0) {
+          console.log(`[gemini-api] turn ${turn + 1}: no tool calls, final response`);
           return { response: result.text ?? '', raw: result };
         }
+        console.log(`[gemini-api] turn ${turn + 1}: ${functionCalls.length} tool call(s) requested`);
 
         // Echo the model's own turn back VERBATIM: it carries thoughtSignature
         // on its parts (which Gemini 3.x-generation models validate on the next
@@ -109,17 +112,22 @@ export function createGeminiApiBackend(config: Config): LlmBackend {
 
         const responseParts: Part[] = [];
         for (const call of functionCalls) {
+          console.log(`[gemini-api] tool call: ${call.name}(${JSON.stringify(call.args)})`);
           const handler = call.name ? TOOL_HANDLERS[call.name] : undefined;
           let output: unknown;
           if (!handler) {
             output = { error: `Unknown tool: ${call.name}` };
+            console.error(`[gemini-api] tool error: ${call.name} -> unknown tool`);
           } else {
             try {
               output = await handler(config.vaultPath, call.args ?? {});
+              console.log(`[gemini-api] tool result: ${call.name} ->`, JSON.stringify(output));
             } catch (err) {
               // Covers both argument-validation failures (ZodError) and the
               // handler's own errors: fed back to the model, never thrown.
-              output = { error: toolErrorMessage(call.name, err) };
+              const message = toolErrorMessage(call.name, err);
+              output = { error: message };
+              console.error(`[gemini-api] tool error: ${call.name} -> ${message}`);
             }
           }
           // Echo the call's id (when the API populated one) so the response is

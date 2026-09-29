@@ -3,7 +3,9 @@
   "version": "0.1.0",
   "private": true,
   "type": "module",
-  "engines": { "node": ">=20" },
+  "engines": {
+    "node": ">=20"
+  },
   "scripts": {
     "build": "tsc -p tsconfig.json",
     "test": "vitest run",
@@ -11,6 +13,7 @@
     "mcp-server": "node dist/mcp/server.js"
   },
   "dependencies": {
+    "@google/genai": "^2.24.0",
     "@modelcontextprotocol/sdk": "^1.0.0",
     "grammy": "^1.30.0",
     "gray-matter": "^4.0.3",

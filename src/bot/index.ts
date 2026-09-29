@@ -1,9 +1,9 @@
 import { mkdirSync } from 'node:fs';
 import { Bot } from 'grammy';
 import type { Config } from '../config.js';
-import { runHeadless } from '../agy/runHeadless.js';
+import { createLlmBackend } from '../llm/backend.js';
 import { isAuthorized } from './auth.js';
-import { interpretAgyResponse } from './respond.js';
+import { interpretLlmResponse } from './respond.js';
 import { PendingContextStore } from './pendingContext.js';
 import { buildPromptForMessage } from './dispatch.js';
 import { getProposal, deleteProposal } from '../vault/schemaProposals.js';
@@ -14,13 +14,13 @@ function log(chatId: number | string, message: string): void {
 }
 
 export function createBot(config: Config): Bot {
-  // agy is a general coding-agent CLI, not a plain LLM call: run it from a
-  // directory with real files (e.g. this project's own checkout) and it
-  // indexes that as "the project" before doing anything else — which is
-  // where the huge token counts and multi-minute latency were coming from.
-  // Give it an empty, dedicated scratch directory instead.
+  // Only meaningful when llmBackend is "agy" (harmless no-op otherwise): agy
+  // is a general coding-agent CLI, not a plain LLM call — run from a
+  // directory with real files, it indexes that as "the project" before
+  // doing anything else. Give it an empty, dedicated scratch directory.
   mkdirSync(config.agyCwd, { recursive: true });
 
+  const backend = createLlmBackend(config);
   const bot = new Bot(config.telegramBotToken);
   const pending = new PendingContextStore();
 
@@ -60,20 +60,12 @@ export function createBot(config: Config): Bot {
     const chatId = ctx.chat.id;
     log(chatId, `message received: "${ctx.message.text}"`);
     const { prompt, effectiveOriginalMessage } = buildPromptForMessage(chatId, ctx.message.text, pending);
-    log(chatId, `calling agy (bin=${config.agyBin}, timeout=${config.agyTimeout})...`);
+    log(chatId, `calling ${config.llmBackend} backend...`);
     try {
-      const result = await runHeadless(prompt, {
-        agyBin: config.agyBin,
-        timeout: config.agyTimeout,
-        cwd: config.agyCwd,
-        model: config.agyModel,
-      });
-      log(
-        chatId,
-        `agy responded: status=${result.status}, duration=${(result.raw as { duration_seconds?: number }).duration_seconds ?? '?'}s`,
-      );
-      log(chatId, `agy raw result: ${JSON.stringify(result.raw)}`);
-      const action = interpretAgyResponse(result.response);
+      const result = await backend(prompt);
+      log(chatId, `${config.llmBackend} responded`);
+      log(chatId, `raw result: ${JSON.stringify(result.raw)}`);
+      const action = interpretLlmResponse(result.response);
       if (action.kind === 'clarify') {
         // Not ctx.message.text: on a 2nd+ clarification round that is only the
         // user's answer to the previous question, not the original message.
@@ -82,9 +74,9 @@ export function createBot(config: Config): Bot {
       } else {
         log(chatId, `replying: "${action.text.slice(0, 200)}"`);
       }
-      await ctx.reply(action.text.trim() || 'agy вернул пустой ответ — см. логи бота в консоли.');
+      await ctx.reply(action.text.trim() || `${config.llmBackend} вернул пустой ответ — см. логи бота в консоли.`);
     } catch (err) {
-      console.error(`[${new Date().toISOString()}] [chat ${chatId}] runHeadless failed:`, err);
+      console.error(`[${new Date().toISOString()}] [chat ${chatId}] backend call failed:`, err);
       await ctx.reply(`Ошибка: ${(err as Error).message}. Попробуйте ещё раз.`);
     }
   });

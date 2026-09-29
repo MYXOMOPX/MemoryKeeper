@@ -25,6 +25,19 @@ Node.js 20 + TypeScript, [grammY](https://grammy.dev) (Telegram), `@modelcontext
 | `VAULT_PATH` | да | Путь к папке vault'а (markdown-файлы) |
 | `AGY_BIN` | нет (по умолчанию `agy`) | Путь/имя бинарника `agy` |
 | `AGY_TIMEOUT` | нет (по умолчанию `2m`) | Таймаут одного headless-вызова `agy` (`Ns`/`Nm`) |
+| `LLM_BACKEND` | нет (по умолчанию `agy`) | `agy` \| `gemini-api` — какой движок отвечает на сообщения |
+| `GEMINI_API_KEY` | только если `LLM_BACKEND=gemini-api` | Ключ Gemini API (обычный платный тариф по токенам, не через подписку) |
+| `GEMINI_API_MODEL` | нет (по умолчанию `gemini-2.5-flash-lite`) | Модель для прямого API-пути |
+| `GEMINI_API_TIMEOUT` | нет (по умолчанию `2m`) | Таймаут всего tool-calling цикла для `gemini-api` |
+
+По умолчанию бот ходит через `agy` (бесплатно, через вашу подписку). Если
+задать `LLM_BACKEND=gemini-api` и `GEMINI_API_KEY`, бот вместо этого вызывает
+Gemini API напрямую — обычный платный тариф по токенам, свой собственный
+цикл вызова инструментов (у прямого API нет агентного цикла, как у `agy`),
+без запуска отдельного MCP-сервера — инструменты вызываются в том же
+процессе. "Воткнуть Claude" в режиме `agy` не требует этой переменной вообще
+— просто `AGY_MODEL=claude-sonnet-4-6` (agy поддерживает Claude через
+`--model`).
 
 Шаблон — [.env.example](.env.example).
 
@@ -32,7 +45,7 @@ Node.js 20 + TypeScript, [grammY](https://grammy.dev) (Telegram), `@modelcontext
 
 ```bash
 npm install
-npm test          # vitest, 72 теста — не требует ни Telegram, ни agy, ни сети
+npm test          # vitest, 91 тест — не требует ни Telegram, ни agy, ни сети
 npm run build      # tsc -> dist/
 ```
 

@@ -20,6 +20,10 @@ describe('loadConfig', () => {
       agyTimeout: '2m',
       agyCwd: path.join(os.tmpdir(), 'memory-keeper-agy-scratch'),
       agyModel: 'gemini-3.8-flash-low',
+      llmBackend: 'agy',
+      geminiApiKey: undefined,
+      geminiApiModel: 'gemini-2.5-flash-lite',
+      geminiApiTimeout: '2m',
     });
   });
 
@@ -50,5 +54,55 @@ describe('loadConfig', () => {
     expect(() => loadConfig({ ...validEnv, ALLOWED_TELEGRAM_ID: 'abc' })).toThrow(
       'ALLOWED_TELEGRAM_ID must be an integer',
     );
+  });
+});
+
+describe('loadConfig — LLM backend selection', () => {
+  const validEnv = {
+    TELEGRAM_BOT_TOKEN: 'token123',
+    ALLOWED_TELEGRAM_ID: '42',
+    VAULT_PATH: '/vault',
+  };
+
+  it('defaults llmBackend to "agy" and does not require GEMINI_API_KEY', () => {
+    const config = loadConfig(validEnv);
+    expect(config.llmBackend).toBe('agy');
+    expect(config.geminiApiKey).toBeUndefined();
+  });
+
+  it('accepts LLM_BACKEND=gemini-api when GEMINI_API_KEY is present', () => {
+    const config = loadConfig({ ...validEnv, LLM_BACKEND: 'gemini-api', GEMINI_API_KEY: 'test-key' });
+    expect(config.llmBackend).toBe('gemini-api');
+    expect(config.geminiApiKey).toBe('test-key');
+  });
+
+  it('throws when LLM_BACKEND=gemini-api but GEMINI_API_KEY is missing', () => {
+    expect(() => loadConfig({ ...validEnv, LLM_BACKEND: 'gemini-api' })).toThrow(
+      'GEMINI_API_KEY is required when LLM_BACKEND=gemini-api',
+    );
+  });
+
+  it('throws on an unrecognized LLM_BACKEND value', () => {
+    expect(() => loadConfig({ ...validEnv, LLM_BACKEND: 'chatgpt' })).toThrow(
+      'LLM_BACKEND must be "agy" or "gemini-api"',
+    );
+  });
+
+  it('uses overrides for GEMINI_API_MODEL and GEMINI_API_TIMEOUT', () => {
+    const config = loadConfig({
+      ...validEnv,
+      LLM_BACKEND: 'gemini-api',
+      GEMINI_API_KEY: 'k',
+      GEMINI_API_MODEL: 'gemini-3-flash',
+      GEMINI_API_TIMEOUT: '90s',
+    });
+    expect(config.geminiApiModel).toBe('gemini-3-flash');
+    expect(config.geminiApiTimeout).toBe('90s');
+  });
+
+  it('throws at startup when GEMINI_API_TIMEOUT is not a parseable duration', () => {
+    expect(() =>
+      loadConfig({ ...validEnv, LLM_BACKEND: 'gemini-api', GEMINI_API_KEY: 'k', GEMINI_API_TIMEOUT: 'soon' }),
+    ).toThrow('Invalid timeout');
   });
 });

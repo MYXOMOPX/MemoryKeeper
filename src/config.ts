@@ -2,6 +2,8 @@ import os from 'node:os';
 import path from 'node:path';
 import { parseTimeoutToMs } from './agy/runHeadless.js';
 
+export type LlmBackendKind = 'agy' | 'gemini-api';
+
 export interface Config {
   telegramBotToken: string;
   allowedTelegramId: number;
@@ -10,6 +12,10 @@ export interface Config {
   agyTimeout: string;
   agyCwd: string;
   agyModel: string;
+  llmBackend: LlmBackendKind;
+  geminiApiKey?: string;
+  geminiApiModel: string;
+  geminiApiTimeout: string;
 }
 
 export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
@@ -31,6 +37,20 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
   // parse this for its Node-side kill timer.
   parseTimeoutToMs(agyTimeout);
 
+  const llmBackendRaw = env.LLM_BACKEND ?? 'agy';
+  if (llmBackendRaw !== 'agy' && llmBackendRaw !== 'gemini-api') {
+    throw new Error(`LLM_BACKEND must be "agy" or "gemini-api", got "${llmBackendRaw}"`);
+  }
+  const llmBackend: LlmBackendKind = llmBackendRaw;
+
+  const geminiApiKey = env.GEMINI_API_KEY;
+  if (llmBackend === 'gemini-api' && !geminiApiKey) {
+    throw new Error('GEMINI_API_KEY is required when LLM_BACKEND=gemini-api');
+  }
+
+  const geminiApiTimeout = env.GEMINI_API_TIMEOUT ?? '2m';
+  parseTimeoutToMs(geminiApiTimeout);
+
   return {
     telegramBotToken,
     allowedTelegramId,
@@ -46,5 +66,9 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
     // invocations, not the user's globally configured model for other
     // projects (settings.json's "model" is shared across all of them).
     agyModel: env.AGY_MODEL ?? 'gemini-3.8-flash-low',
+    llmBackend,
+    geminiApiKey,
+    geminiApiModel: env.GEMINI_API_MODEL ?? 'gemini-2.5-flash-lite',
+    geminiApiTimeout,
   };
 }

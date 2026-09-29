@@ -1,5 +1,5 @@
 import { GoogleGenAI } from '@google/genai';
-import type { Content, Part } from '@google/genai';
+import type { Content, FunctionCall, Part } from '@google/genai';
 import type { Config } from '../config.js';
 import { parseTimeoutToMs } from '../agy/runHeadless.js';
 import { TOOL_DECLARATIONS } from './toolDeclarations.js';
@@ -42,11 +42,6 @@ const TOOL_HANDLERS: Record<string, ToolHandler> = {
     ),
 };
 
-interface FunctionCall {
-  name?: string;
-  args?: Record<string, unknown>;
-}
-
 export function createGeminiApiBackend(config: Config): LlmBackend {
   const ai = new GoogleGenAI({ apiKey: config.geminiApiKey });
   const timeoutMs = parseTimeoutToMs(config.geminiApiTimeout);
@@ -68,15 +63,23 @@ export function createGeminiApiBackend(config: Config): LlmBackend {
           },
         });
 
-        const functionCalls = (result.functionCalls ?? []) as FunctionCall[];
+        const functionCalls: FunctionCall[] = result.functionCalls ?? [];
         if (functionCalls.length === 0) {
           return { response: result.text ?? '', raw: result };
         }
 
-        contents.push({
-          role: 'model',
-          parts: functionCalls.map((call) => ({ functionCall: { name: call.name, args: call.args } })),
-        });
+        // Echo the model's own turn back VERBATIM: it carries thoughtSignature
+        // on its parts (which Gemini 3.x-generation models validate on the next
+        // request — a hand-rebuilt turn without it is rejected with a 400), any
+        // text parts emitted alongside the calls, and each call's id. Only if
+        // the SDK genuinely gave us no candidate content do we fall back to
+        // rebuilding the turn from functionCalls.
+        contents.push(
+          result.candidates?.[0]?.content ?? {
+            role: 'model',
+            parts: functionCalls.map((call) => ({ functionCall: call })),
+          },
+        );
 
         const responseParts: Part[] = [];
         for (const call of functionCalls) {
@@ -91,7 +94,11 @@ export function createGeminiApiBackend(config: Config): LlmBackend {
               output = { error: (err as Error).message };
             }
           }
-          responseParts.push({ functionResponse: { name: call.name, response: { result: output } } });
+          // Echo the call's id (when the API populated one) so the response is
+          // matched to the right call, per FunctionResponse.id in the SDK.
+          responseParts.push({
+            functionResponse: { ...(call.id ? { id: call.id } : {}), name: call.name, response: { result: output } },
+          });
         }
         // Per the installed SDK's Content.role doc ("Must be either 'user' or
         // 'model'"), a function-response turn is sent with role 'user' — NOT

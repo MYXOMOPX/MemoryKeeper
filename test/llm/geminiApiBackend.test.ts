@@ -86,6 +86,78 @@ describe('createGeminiApiBackend', () => {
     expect(generateContentMock.mock.calls.length).toBeGreaterThan(1);
   });
 
+  it("echoes the model's real turn (candidates[0].content) verbatim, keeping thoughtSignature and text parts", async () => {
+    const modelTurn = {
+      role: 'model',
+      parts: [
+        { text: 'Сейчас посмотрю схему.' },
+        { functionCall: { id: 'call-1', name: 'get_schema', args: {} }, thoughtSignature: 'test-signature' },
+      ],
+    };
+    generateContentMock
+      .mockResolvedValueOnce({
+        text: 'Сейчас посмотрю схему.',
+        functionCalls: [{ id: 'call-1', name: 'get_schema', args: {} }],
+        candidates: [{ content: modelTurn }],
+      })
+      .mockResolvedValueOnce({ text: 'Готово', functionCalls: [] });
+    handlersMocks.getSchema.mockResolvedValue({ types: {} });
+
+    const backend = createGeminiApiBackend(config);
+    await backend('какая схема?');
+
+    const secondContents = (generateContentMock.mock.calls[1][0] as { contents: unknown[] }).contents;
+    // The exact SDK object, not a reconstruction missing the signature/text.
+    expect(secondContents[1]).toBe(modelTurn);
+    expect(secondContents[1]).toEqual({
+      role: 'model',
+      parts: [
+        { text: 'Сейчас посмотрю схему.' },
+        { functionCall: { id: 'call-1', name: 'get_schema', args: {} }, thoughtSignature: 'test-signature' },
+      ],
+    });
+  });
+
+  it('echoes each function call id back on its functionResponse', async () => {
+    generateContentMock
+      .mockResolvedValueOnce({
+        text: undefined,
+        functionCalls: [
+          { id: 'call-a', name: 'get_schema', args: {} },
+          { name: 'list_entities', args: {} },
+        ],
+      })
+      .mockResolvedValueOnce({ text: 'Готово', functionCalls: [] });
+    handlersMocks.getSchema.mockResolvedValue({ types: {} });
+    handlersMocks.listEntities.mockResolvedValue([]);
+
+    const backend = createGeminiApiBackend(config);
+    await backend('схема и список');
+
+    const secondContents = (generateContentMock.mock.calls[1][0] as {
+      contents: { role: string; parts: { functionResponse?: { id?: string; name?: string } }[] }[];
+    }).contents;
+    const responseTurn = secondContents[2];
+    expect(responseTurn.role).toBe('user');
+    expect(responseTurn.parts[0].functionResponse).toMatchObject({ id: 'call-a', name: 'get_schema' });
+    // No id on the call -> none invented on the response.
+    expect(responseTurn.parts[1].functionResponse).not.toHaveProperty('id');
+    expect(responseTurn.parts[1].functionResponse?.name).toBe('list_entities');
+  });
+
+  it('falls back to rebuilding the model turn from functionCalls only when candidates[0].content is absent', async () => {
+    generateContentMock
+      .mockResolvedValueOnce({ text: undefined, functionCalls: [{ name: 'get_schema', args: {} }] })
+      .mockResolvedValueOnce({ text: 'Готово', functionCalls: [] });
+    handlersMocks.getSchema.mockResolvedValue({ types: {} });
+
+    const backend = createGeminiApiBackend(config);
+    await backend('какая схема?');
+
+    const secondContents = (generateContentMock.mock.calls[1][0] as { contents: unknown[] }).contents;
+    expect(secondContents[1]).toEqual({ role: 'model', parts: [{ functionCall: { name: 'get_schema', args: {} } }] });
+  });
+
   it('passes an abort signal derived from geminiApiTimeout to generateContent', async () => {
     generateContentMock.mockResolvedValueOnce({ text: 'ok', functionCalls: [] });
 

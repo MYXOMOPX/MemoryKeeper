@@ -44,13 +44,14 @@ export function createBot(config: Config): Bot {
     const { prompt, effectiveOriginalMessage } = buildPromptForMessage(chatId, ctx.message.text, pending);
     try {
       const result = await runHeadless(prompt, { agyBin: config.agyBin, timeout: config.agyTimeout });
+      console.log('agy raw result:', JSON.stringify(result.raw));
       const action = interpretAgyResponse(result.response);
       if (action.kind === 'clarify') {
         // Not ctx.message.text: on a 2nd+ clarification round that is only the
         // user's answer to the previous question, not the original message.
         pending.set({ chatId, originalMessage: effectiveOriginalMessage, question: action.text });
       }
-      await ctx.reply(action.text);
+      await ctx.reply(action.text.trim() || 'agy вернул пустой ответ — см. логи бота в консоли.');
     } catch (err) {
       await ctx.reply(`Ошибка: ${(err as Error).message}. Попробуйте ещё раз.`);
     }

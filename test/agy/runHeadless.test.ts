@@ -95,6 +95,33 @@ describe('runHeadless', () => {
     );
   });
 
+  it('includes --model when provided, omits it otherwise', async () => {
+    const child = new FakeChildProcess();
+    spawnMock.mockReturnValue(child);
+
+    const promise = runHeadless('привет', { agyBin: 'agy', timeout: '2m', model: 'gemini-3.8-flash-low' });
+    child.stdout.emit('data', Buffer.from(JSON.stringify({ response: 'ok', status: 'SUCCESS' })));
+    child.emit('close', 0);
+    await promise;
+
+    expect(spawnMock).toHaveBeenCalledWith(
+      'agy',
+      [
+        '--mode',
+        'accept-edits',
+        '--output-format',
+        'json',
+        '--print-timeout',
+        '2m',
+        '--model',
+        'gemini-3.8-flash-low',
+        '-p',
+        'привет',
+      ],
+      { cwd: undefined },
+    );
+  });
+
   it('rejects with stderr content on non-zero exit', async () => {
     const child = new FakeChildProcess();
     spawnMock.mockReturnValue(child);

@@ -10,6 +10,7 @@ export interface RunHeadlessOptions {
   agyBin: string;
   timeout: string;
   cwd?: string;
+  model?: string;
 }
 
 /** Extra time given to agy beyond its own --print-timeout before Node kills it. */
@@ -29,11 +30,10 @@ export function parseTimeoutToMs(timeout: string): number {
 export function runHeadless(prompt: string, options: RunHeadlessOptions): Promise<AgyResult> {
   return new Promise((resolve, reject) => {
     const killAfterMs = parseTimeoutToMs(options.timeout) + KILL_BUFFER_MS;
-    const child = spawn(
-      options.agyBin,
-      ['--mode', 'accept-edits', '--output-format', 'json', '--print-timeout', options.timeout, '-p', prompt],
-      { cwd: options.cwd },
-    );
+    const args = ['--mode', 'accept-edits', '--output-format', 'json', '--print-timeout', options.timeout];
+    if (options.model) args.push('--model', options.model);
+    args.push('-p', prompt);
+    const child = spawn(options.agyBin, args, { cwd: options.cwd });
 
     let stdout = '';
     let stderr = '';

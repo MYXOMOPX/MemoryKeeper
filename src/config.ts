@@ -9,6 +9,7 @@ export interface Config {
   agyBin: string;
   agyTimeout: string;
   agyCwd: string;
+  agyModel: string;
 }
 
 export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
@@ -41,5 +42,9 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
     // before doing anything else, ballooning tokens and latency for no
     // reason. Give it an empty, dedicated scratch directory instead.
     agyCwd: env.AGY_CWD ?? path.join(os.tmpdir(), 'memory-keeper-agy-scratch'),
+    // Passed as --model on every call so it only affects this bot's own agy
+    // invocations, not the user's globally configured model for other
+    // projects (settings.json's "model" is shared across all of them).
+    agyModel: env.AGY_MODEL ?? 'gemini-3.8-flash-low',
   };
 }

@@ -19,19 +19,22 @@ describe('loadConfig', () => {
       agyBin: 'agy',
       agyTimeout: '2m',
       agyCwd: path.join(os.tmpdir(), 'memory-keeper-agy-scratch'),
+      agyModel: 'gemini-3.8-flash-low',
     });
   });
 
-  it('uses overrides for agyBin, agyTimeout and agyCwd when present', () => {
+  it('uses overrides for agyBin, agyTimeout, agyCwd and agyModel when present', () => {
     const config = loadConfig({
       ...validEnv,
       AGY_BIN: '/usr/local/bin/agy',
       AGY_TIMEOUT: '5m',
       AGY_CWD: '/scratch/agy',
+      AGY_MODEL: 'claude-sonnet-4-6',
     });
     expect(config.agyBin).toBe('/usr/local/bin/agy');
     expect(config.agyTimeout).toBe('5m');
     expect(config.agyCwd).toBe('/scratch/agy');
+    expect(config.agyModel).toBe('claude-sonnet-4-6');
   });
 
   it('throws at startup when AGY_TIMEOUT is not a parseable duration', () => {

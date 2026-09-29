@@ -66,6 +66,7 @@ export function createBot(config: Config): Bot {
         agyBin: config.agyBin,
         timeout: config.agyTimeout,
         cwd: config.agyCwd,
+        model: config.agyModel,
       });
       log(
         chatId,

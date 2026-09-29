@@ -74,6 +74,62 @@ describe('createGeminiApiBackend', () => {
     expect(JSON.stringify(secondCallArgs.contents)).toContain('boom');
   });
 
+  it('passes well-formed, zod-validated args through to the handler unchanged', async () => {
+    const args = {
+      type: 'person',
+      name: 'Петя',
+      key: 'Любимый чай',
+      value: 'зелёный',
+      relatedEntities: [{ type: 'person', name: 'Катя' }],
+    };
+    generateContentMock
+      .mockResolvedValueOnce({ text: undefined, functionCalls: [{ name: 'write_fact', args }] })
+      .mockResolvedValueOnce({ text: 'Записал', functionCalls: [] });
+    handlersMocks.writeFact.mockResolvedValue({ message: 'ok' });
+
+    const backend = createGeminiApiBackend(config);
+    await backend('запиши факт');
+
+    expect(handlersMocks.writeFact).toHaveBeenCalledWith('/vault', 'person', 'Петя', 'Любимый чай', 'зелёный', [
+      { type: 'person', name: 'Катя' },
+    ]);
+  });
+
+  it('rejects a call missing a required argument with a validation error, without running the handler', async () => {
+    generateContentMock
+      .mockResolvedValueOnce({
+        text: undefined,
+        functionCalls: [{ name: 'write_fact', args: { type: 'person', name: 'Петя', key: 'Любимый чай' } }],
+      })
+      .mockResolvedValueOnce({ text: 'Исправлюсь', functionCalls: [] });
+
+    const backend = createGeminiApiBackend(config);
+    const result = await backend('запиши факт');
+
+    expect(result.response).toBe('Исправлюсь');
+    expect(handlersMocks.writeFact).not.toHaveBeenCalled();
+    const secondContents = (generateContentMock.mock.calls[1][0] as {
+      contents: { parts: { functionResponse?: { name?: string; response?: { result?: { error?: string } } } }[] }[];
+    }).contents;
+    const functionResponse = secondContents[2].parts[0].functionResponse;
+    expect(functionResponse?.name).toBe('write_fact');
+    expect(functionResponse?.response?.result?.error).toMatch(/Invalid arguments for write_fact/);
+    expect(functionResponse?.response?.result?.error).toMatch(/value/);
+  });
+
+  it('rejects a call with a wrongly-typed argument with a validation error', async () => {
+    generateContentMock
+      .mockResolvedValueOnce({ text: undefined, functionCalls: [{ name: 'search_entities', args: { query: 42 } }] })
+      .mockResolvedValueOnce({ text: 'ok', functionCalls: [] });
+
+    const backend = createGeminiApiBackend(config);
+    await backend('найди');
+
+    expect(handlersMocks.searchEntitiesHandler).not.toHaveBeenCalled();
+    const secondCallArgs = generateContentMock.mock.calls[1][0] as { contents: unknown[] };
+    expect(JSON.stringify(secondCallArgs.contents)).toMatch(/Invalid arguments for search_entities: query: Expected string/);
+  });
+
   it('throws once the tool-calling loop exceeds its turn limit instead of looping forever', async () => {
     generateContentMock.mockResolvedValue({ text: undefined, functionCalls: [{ name: 'get_schema', args: {} }] });
     handlersMocks.getSchema.mockResolvedValue({ types: {} });

@@ -3,7 +3,18 @@ import type { Content, FunctionCall, Part } from '@google/genai';
 import type { Config } from '../config.js';
 import { parseTimeoutToMs } from '../agy/runHeadless.js';
 import { TOOL_DECLARATIONS } from './toolDeclarations.js';
+import { z } from 'zod';
 import * as handlers from '../mcp/handlers.js';
+import {
+  addAliasShape,
+  createEntityShape,
+  getSchemaShape,
+  listEntitiesShape,
+  proposeSchemaChangeShape,
+  readEntityShape,
+  searchEntitiesShape,
+  writeFactShape,
+} from '../mcp/toolSchemas.js';
 import type { LlmBackend } from './types.js';
 
 /** Internal safety valve against a runaway tool-calling loop — not configurable. */
@@ -11,36 +22,51 @@ const MAX_TURNS = 8;
 
 type ToolHandler = (vaultPath: string, args: Record<string, unknown>) => Promise<unknown>;
 
+/**
+ * Binds a handler to the SAME zod shape the MCP server validates with
+ * (src/mcp/toolSchemas.ts). The z.object is built once here at module load;
+ * each call parses the model's raw args before the handler runs, so a
+ * malformed/incomplete call throws a ZodError instead of reaching the vault
+ * with `undefined` fields.
+ */
+function validated<S extends z.ZodRawShape>(
+  shape: S,
+  run: (vaultPath: string, args: z.infer<z.ZodObject<S>>) => Promise<unknown>,
+): ToolHandler {
+  const schema = z.object(shape);
+  return (vaultPath, rawArgs) => run(vaultPath, schema.parse(rawArgs));
+}
+
 const TOOL_HANDLERS: Record<string, ToolHandler> = {
-  get_schema: (vaultPath) => handlers.getSchema(vaultPath),
-  list_entities: (vaultPath, args) => handlers.listEntities(vaultPath, args.type as string | undefined),
-  search_entities: (vaultPath, args) => handlers.searchEntitiesHandler(vaultPath, args.query as string),
-  read_entity: (vaultPath, args) => handlers.readEntityHandler(vaultPath, args.type as string, args.name as string),
-  write_fact: (vaultPath, args) =>
-    handlers.writeFact(
-      vaultPath,
-      args.type as string,
-      args.name as string,
-      args.key as string,
-      args.value as string,
-      args.relatedEntities as { type: string; name: string }[] | undefined,
-    ),
-  create_entity: (vaultPath, args) =>
-    handlers.createEntity(
-      vaultPath,
-      args.type as string,
-      args.name as string,
-      args.fields as Record<string, string> | undefined,
-    ),
-  add_alias: (vaultPath, args) =>
-    handlers.addAlias(vaultPath, args.type as string, args.name as string, args.alias as string),
-  propose_schema_change: (vaultPath, args) =>
-    handlers.proposeSchemaChange(
-      vaultPath,
-      args.description as string,
-      args.change as Parameters<typeof handlers.proposeSchemaChange>[2],
-    ),
+  get_schema: validated(getSchemaShape, (vaultPath) => handlers.getSchema(vaultPath)),
+  list_entities: validated(listEntitiesShape, (vaultPath, { type }) => handlers.listEntities(vaultPath, type)),
+  search_entities: validated(searchEntitiesShape, (vaultPath, { query }) =>
+    handlers.searchEntitiesHandler(vaultPath, query),
+  ),
+  read_entity: validated(readEntityShape, (vaultPath, { type, name }) =>
+    handlers.readEntityHandler(vaultPath, type, name),
+  ),
+  write_fact: validated(writeFactShape, (vaultPath, { type, name, key, value, relatedEntities }) =>
+    handlers.writeFact(vaultPath, type, name, key, value, relatedEntities),
+  ),
+  create_entity: validated(createEntityShape, (vaultPath, { type, name, fields }) =>
+    handlers.createEntity(vaultPath, type, name, fields),
+  ),
+  add_alias: validated(addAliasShape, (vaultPath, { type, name, alias }) =>
+    handlers.addAlias(vaultPath, type, name, alias),
+  ),
+  propose_schema_change: validated(proposeSchemaChangeShape, (vaultPath, { description, change }) =>
+    handlers.proposeSchemaChange(vaultPath, description, change),
+  ),
 };
+
+function toolErrorMessage(toolName: string | undefined, err: unknown): string {
+  if (err instanceof z.ZodError) {
+    const issues = err.issues.map((issue) => `${issue.path.join('.') || '(args)'}: ${issue.message}`).join('; ');
+    return `Invalid arguments for ${toolName}: ${issues}`;
+  }
+  return (err as Error).message;
+}
 
 export function createGeminiApiBackend(config: Config): LlmBackend {
   const ai = new GoogleGenAI({ apiKey: config.geminiApiKey });
@@ -91,7 +117,9 @@ export function createGeminiApiBackend(config: Config): LlmBackend {
             try {
               output = await handler(config.vaultPath, call.args ?? {});
             } catch (err) {
-              output = { error: (err as Error).message };
+              // Covers both argument-validation failures (ZodError) and the
+              // handler's own errors: fed back to the model, never thrown.
+              output = { error: toolErrorMessage(call.name, err) };
             }
           }
           // Echo the call's id (when the API populated one) so the response is

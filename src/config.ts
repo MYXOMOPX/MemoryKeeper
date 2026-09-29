@@ -1,3 +1,5 @@
+import os from 'node:os';
+import path from 'node:path';
 import { parseTimeoutToMs } from './agy/runHeadless.js';
 
 export interface Config {
@@ -6,6 +8,7 @@ export interface Config {
   vaultPath: string;
   agyBin: string;
   agyTimeout: string;
+  agyCwd: string;
 }
 
 export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
@@ -33,5 +36,10 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
     vaultPath,
     agyBin: env.AGY_BIN ?? 'agy',
     agyTimeout,
+    // agy is a general coding-agent CLI: run from the project's own directory
+    // (or any directory with real files), it indexes that as "the project"
+    // before doing anything else, ballooning tokens and latency for no
+    // reason. Give it an empty, dedicated scratch directory instead.
+    agyCwd: env.AGY_CWD ?? path.join(os.tmpdir(), 'memory-keeper-agy-scratch'),
   };
 }

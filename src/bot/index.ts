@@ -1,3 +1,4 @@
+import { mkdirSync } from 'node:fs';
 import { Bot } from 'grammy';
 import type { Config } from '../config.js';
 import { runHeadless } from '../agy/runHeadless.js';
@@ -13,6 +14,13 @@ function log(chatId: number | string, message: string): void {
 }
 
 export function createBot(config: Config): Bot {
+  // agy is a general coding-agent CLI, not a plain LLM call: run it from a
+  // directory with real files (e.g. this project's own checkout) and it
+  // indexes that as "the project" before doing anything else — which is
+  // where the huge token counts and multi-minute latency were coming from.
+  // Give it an empty, dedicated scratch directory instead.
+  mkdirSync(config.agyCwd, { recursive: true });
+
   const bot = new Bot(config.telegramBotToken);
   const pending = new PendingContextStore();
 
@@ -54,7 +62,11 @@ export function createBot(config: Config): Bot {
     const { prompt, effectiveOriginalMessage } = buildPromptForMessage(chatId, ctx.message.text, pending);
     log(chatId, `calling agy (bin=${config.agyBin}, timeout=${config.agyTimeout})...`);
     try {
-      const result = await runHeadless(prompt, { agyBin: config.agyBin, timeout: config.agyTimeout });
+      const result = await runHeadless(prompt, {
+        agyBin: config.agyBin,
+        timeout: config.agyTimeout,
+        cwd: config.agyCwd,
+      });
       log(
         chatId,
         `agy responded: status=${result.status}, duration=${(result.raw as { duration_seconds?: number }).duration_seconds ?? '?'}s`,

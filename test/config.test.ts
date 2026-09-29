@@ -1,3 +1,5 @@
+import os from 'node:os';
+import path from 'node:path';
 import { describe, it, expect } from 'vitest';
 import { loadConfig } from '../src/config.js';
 
@@ -16,13 +18,20 @@ describe('loadConfig', () => {
       vaultPath: '/vault',
       agyBin: 'agy',
       agyTimeout: '2m',
+      agyCwd: path.join(os.tmpdir(), 'memory-keeper-agy-scratch'),
     });
   });
 
-  it('uses overrides for agyBin and agyTimeout when present', () => {
-    const config = loadConfig({ ...validEnv, AGY_BIN: '/usr/local/bin/agy', AGY_TIMEOUT: '5m' });
+  it('uses overrides for agyBin, agyTimeout and agyCwd when present', () => {
+    const config = loadConfig({
+      ...validEnv,
+      AGY_BIN: '/usr/local/bin/agy',
+      AGY_TIMEOUT: '5m',
+      AGY_CWD: '/scratch/agy',
+    });
     expect(config.agyBin).toBe('/usr/local/bin/agy');
     expect(config.agyTimeout).toBe('5m');
+    expect(config.agyCwd).toBe('/scratch/agy');
   });
 
   it('throws at startup when AGY_TIMEOUT is not a parseable duration', () => {

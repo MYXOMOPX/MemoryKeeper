@@ -10,6 +10,10 @@ services:
       VAULT_PATH: /vault
       AGY_BIN: agy
       AGY_TIMEOUT: 2m
+      LLM_BACKEND: ${LLM_BACKEND:-agy}
+      GEMINI_API_KEY: ${GEMINI_API_KEY:-}
+      GEMINI_API_MODEL: ${GEMINI_API_MODEL:-gemini-2.5-flash-lite}
+      GEMINI_API_TIMEOUT: ${GEMINI_API_TIMEOUT:-2m}
     volumes:
       - /mnt/memory-vault:/vault
       # Mount the WHOLE ~/.gemini directory (not just antigravity-cli/): where

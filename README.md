@@ -25,6 +25,8 @@ Node.js 20 + TypeScript, [grammY](https://grammy.dev) (Telegram), `@modelcontext
 | `VAULT_PATH` | да | Путь к папке vault'а (markdown-файлы) |
 | `AGY_BIN` | нет (по умолчанию `agy`) | Путь/имя бинарника `agy` |
 | `AGY_TIMEOUT` | нет (по умолчанию `2m`) | Таймаут одного headless-вызова `agy` (`Ns`/`Nm`) |
+| `AGY_MODEL` | нет (по умолчанию `gemini-3.8-flash-low`) | Модель для `agy` (например, `claude-sonnet-4-6` — так подключается Claude, без доп. кода) |
+| `AGY_CWD` | нет (по умолчанию подпапка `memory-keeper-agy-scratch` во временной директории ОС) | Рабочая директория для `agy`-процесса — не путать со scratch-паттерном, просто чтобы `agy` не индексировал репозиторий как проект |
 | `LLM_BACKEND` | нет (по умолчанию `agy`) | `agy` \| `gemini-api` — какой движок отвечает на сообщения |
 | `GEMINI_API_KEY` | только если `LLM_BACKEND=gemini-api` | Ключ Gemini API (обычный платный тариф по токенам, не через подписку) |
 | `GEMINI_API_MODEL` | нет (по умолчанию `gemini-2.5-flash-lite`) | Модель для прямого API-пути |
